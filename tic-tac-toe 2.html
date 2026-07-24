@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<!--
+  TIC TAC TOE — BUILD INSTRUCTIONS LOG
+
+  1) Original request:
+     - Turn-based Tic Tac Toe in HTML.
+     - Soft gray background with yellow tones.
+     - X piece red, O piece blue.
+     - 9 equally spaced, darker, rounded-corner squares that fill on click/tap.
+     - Everything centered on the page.
+     - A 30-second turn timer above the 3x3 grid, white text, Pangolin font.
+     - Endless play until both users decide to stop (no forced game end).
+     - A point counter on the left side of the screen showing each player's
+       name (entered via a popup before the game begins) and score, e.g.
+       "Player (Me): 1" and "Player (Opponent): 1".
+     - Popup UI for name entry: dims everything else to 50% opacity and
+       cannot be dismissed until a name is chosen.
+     - Must be hostable for free and shareable via URL.
+
+  2) Revision: switch color theme to dark gray background, matte black
+     squares, Montserrat Bold font throughout, and a strict gray/black/white
+     theme — with red X, blue O, and green used for the point counter.
+
+  3) Revision: emphasize the winning three squares with a colored
+     strike-through line matching the winner's piece color (later reverted).
+
+  4) Revision: replace the strike-through line with a slight size increase
+     (scale-up) on the three winning squares to emphasize the win, still
+     outlined in the winner's color (red for X, blue for O).
+
+  Note: this is a single self-contained file with no backend, so it runs as
+  local pass-and-play (one device/screen). True real-time cross-device
+  multiplayer would require a small backend (e.g. Firebase) to sync moves.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tic Tac Toe</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #2b2d30;
+    --bg-dark-2: #1e1f21;
+    --square: #121212;
+    --square-hover: #1c1c1c;
+    --red: #e0453f;
+    --blue: #3f7fe0;
+    --green: #45c46a;
+    --ink: #f2f2f2;
+    --muted: #b8b9bb;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    background: radial-gradient(circle at 30% 20%, var(--bg-dark), var(--bg-dark-2) 70%);
+    color: var(--ink);
+    overflow: hidden;
+  }
+
+  .app {
+    position: relative;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ---------- Scoreboard ---------- */
+  .scoreboard {
+    position: absolute;
+    left: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .score-card {
+    background: rgba(255,255,255,0.06);
+    border-radius: 14px;
+    padding: 14px 20px;
+    min-width: 180px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    border: 2px solid rgba(255,255,255,0.12);
+  }
+
+  .score-card.turn-active {
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(69,196,106,0.2);
+  }
+
+  .score-name {
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: 0.2px;
+    color: var(--muted);
+  }
+
+  .score-value {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--green);
+  }
+
+  .reset-btn {
+    margin-top: 6px;
+    background: var(--green);
+    color: #0f0f0f;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+  .reset-btn:hover { opacity: 0.85; }
+
+  /* ---------- Center column: timer + board ---------- */
+  .center-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+  }
+
+  .timer {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    color: #ffffff;
+    font-size: 2.4rem;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    letter-spacing: 1px;
+    min-width: 220px;
+    text-align: center;
+  }
+
+  .turn-label {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    color: var(--muted);
+    font-size: 1.1rem;
+    margin-top: -14px;
+  }
+
+  .board {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, 100px);
+    grid-template-rows: repeat(3, 100px);
+    gap: 14px;
+  }
+
+  .cell.win-cell {
+    transform: scale(1.08);
+    z-index: 2;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+
+  .cell {
+    background: var(--square);
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 2px 3px rgba(255,255,255,0.03);
+    transition: background 0.15s ease, transform 0.08s ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .cell:hover { background: var(--square-hover); }
+  .cell:active { transform: scale(0.96); }
+
+  .cell.filled { cursor: default; }
+  .cell.filled:hover { background: var(--square); }
+
+  .mark {
+    font-size: 3.2rem;
+    font-weight: 900;
+    font-family: 'Montserrat', sans-serif;
+    animation: pop 0.18s ease;
+  }
+
+  .mark.x { color: var(--red); }
+  .mark.o { color: var(--blue); }
+
+  @keyframes pop {
+    from { transform: scale(0.4); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .status-banner {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: var(--green);
+    height: 26px;
+    text-align: center;
+  }
+
+  /* ---------- Modal ---------- */
+  .overlay-dim {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 10;
+  }
+
+  .app.dimmed > *:not(.modal) {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-box {
+    background: #1c1d1f;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 36px 40px;
+    width: 320px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    text-align: center;
+  }
+
+  .modal-box h2 {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    margin: 0 0 6px;
+    color: var(--ink);
+    font-size: 1.6rem;
+  }
+
+  .modal-box p {
+    margin: 0 0 18px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .modal-box input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 2px solid #3a3b3d;
+    background: #121212;
+    color: var(--ink);
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 14px;
+    outline: none;
+  }
+  .modal-box input:focus { border-color: var(--green); }
+
+  .modal-box button {
+    width: 100%;
+    padding: 11px;
+    border: none;
+    border-radius: 10px;
+    background: var(--green);
+    color: #0f0f0f;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .modal-box button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .modal-error {
+    color: var(--red);
+    font-size: 0.8rem;
+    margin: -10px 0 12px;
+    height: 14px;
+  }
+
+  @media (max-width: 640px) {
+    .scoreboard {
+      left: 50%;
+      top: 24px;
+      transform: translateX(-50%);
+      flex-direction: row;
+      gap: 12px;
+    }
+    .score-card { min-width: 130px; padding: 10px 12px; }
+    .center-col { margin-top: 110px; }
+    .board {
+      grid-template-columns: repeat(3, 84px);
+      grid-template-rows: repeat(3, 84px);
+      gap: 10px;
+    }
+    .mark { font-size: 2.6rem; }
+    .timer { font-size: 2rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <div class="scoreboard">
+    <div class="score-card" id="cardMe">
+      <div class="score-name me" id="nameMeDisplay">Player (Me)</div>
+      <div class="score-value" id="scoreMe">0</div>
+    </div>
+    <div class="score-card" id="cardOpp">
+      <div class="score-name opp" id="nameOppDisplay">Player (Opponent)</div>
+      <div class="score-value" id="scoreOpp">0</div>
+    </div>
+    <button class="reset-btn" id="resetBtn">Reset Match</button>
+  </div>
+
+  <div class="center-col">
+    <div class="timer" id="timer">00:30</div>
+    <div class="turn-label" id="turnLabel">X's turn</div>
+    <div class="board" id="board"></div>
+    <div class="status-banner" id="statusBanner"></div>
+  </div>
+
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <h2>Welcome!</h2>
+    <p>Enter your name to start playing.</p>
+    <input type="text" id="nameInput" placeholder="Your name" maxlength="16" autofocus>
+    <div class="modal-error" id="nameError"></div>
+    <button id="startBtn" disabled>Start Game</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const boardEl = document.getElementById('board');
+  const timerEl = document.getElementById('timer');
+  const turnLabelEl = document.getElementById('turnLabel');
+  const statusBanner = document.getElementById('statusBanner');
+  const scoreMeEl = document.getElementById('scoreMe');
+  const scoreOppEl = document.getElementById('scoreOpp');
+  const nameMeDisplay = document.getElementById('nameMeDisplay');
+  const cardMe = document.getElementById('cardMe');
+  const cardOpp = document.getElementById('cardOpp');
+  const modal = document.getElementById('modal');
+  const nameInput = document.getElementById('nameInput');
+  const startBtn = document.getElementById('startBtn');
+  const nameError = document.getElementById('nameError');
+  const app = document.getElementById('app');
+  const resetBtn = document.getElementById('resetBtn');
+
+  let board = Array(9).fill(null);
+  let currentPlayer = 'X'; // X always goes first each new round
+  let gameOver = false;
+  let scores = { X: 0, O: 0 };
+  let playerName = 'Player (Me)';
+  const TURN_SECONDS = 30;
+  let timeLeft = TURN_SECONDS;
+  let timerInterval = null;
+
+  const WIN_LINES = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+  ];
+
+  // Build board cells
+  for (let i = 0; i < 9; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.index = i;
+    cell.addEventListener('click', () => handleCellClick(i));
+    boardEl.appendChild(cell);
+  }
+  const cellEls = Array.from(boardEl.querySelectorAll('.cell'));
+
+  function highlightWin(winLine, player) {
+    const color = player === 'X' ? 'var(--red)' : 'var(--blue)';
+    winLine.forEach(idx => {
+      const cell = cellEls[idx];
+      cell.classList.add('win-cell');
+      cell.style.boxShadow = `inset 0 2px 4px rgba(0,0,0,0.5), 0 0 0 3px ${color}`;
+    });
+  }
+
+  function clearWinHighlight() {
+    cellEls.forEach(cell => {
+      cell.classList.remove('win-cell');
+      cell.style.boxShadow = '';
+    });
+  }
+
+  function handleCellClick(i) {
+    if (gameOver || board[i]) return;
+    placeMark(i, currentPlayer);
+  }
+
+  function placeMark(i, player) {
+    board[i] = player;
+    const cell = cellEls[i];
+    cell.classList.add('filled');
+    const mark = document.createElement('span');
+    mark.className = 'mark ' + (player === 'X' ? 'x' : 'o');
+    mark.textContent = player;
+    cell.appendChild(mark);
+
+    const winLine = checkWin(player);
+    if (winLine) {
+      endRound(player, winLine);
+    } else if (board.every(c => c !== null)) {
+      endRound(null, null);
+    } else {
+      switchTurn();
+    }
+  }
+
+  function checkWin(player) {
+    for (const line of WIN_LINES) {
+      if (line.every(idx => board[idx] === player)) return line;
+    }
+    return null;
+  }
+
+  function endRound(winner, winLine) {
+    gameOver = true;
+    stopTimer();
+    if (winLine) {
+      highlightWin(winLine, winner);
+    }
+    if (winner === 'X') {
+      scores.X++;
+      statusBanner.textContent = `${playerName} wins the round!`;
+    } else if (winner === 'O') {
+      scores.O++;
+      statusBanner.textContent = 'Player (Opponent) wins the round!';
+    } else {
+      statusBanner.textContent = "It's a draw!";
+    }
+    updateScoreboard();
+    setTimeout(startNewRound, 1600);
+  }
+
+  function switchTurn() {
+    currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+    updateTurnUI();
+    resetTimer();
+  }
+
+  function updateTurnUI() {
+    turnLabelEl.textContent = currentPlayer === 'X'
+      ? `${playerName}'s turn (X)`
+      : `Opponent's turn (O)`;
+    cardMe.classList.toggle('turn-active', currentPlayer === 'X');
+    cardOpp.classList.toggle('turn-active', currentPlayer === 'O');
+  }
+
+  function updateScoreboard() {
+    scoreMeEl.textContent = scores.X;
+    scoreOppEl.textContent = scores.O;
+  }
+
+  function startNewRound() {
+    board = Array(9).fill(null);
+    gameOver = false;
+    statusBanner.textContent = '';
+    cellEls.forEach(cell => {
+      cell.innerHTML = '';
+      cell.classList.remove('filled');
+      cell.style.boxShadow = '';
+    });
+    clearWinHighlight();
+    currentPlayer = 'X';
+    updateTurnUI();
+    resetTimer();
+  }
+
+  // ---------- Timer: turn auto-passes if it runs out ----------
+  function resetTimer() {
+    stopTimer();
+    timeLeft = TURN_SECONDS;
+    renderTimer();
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      renderTimer();
+      if (timeLeft <= 0) {
+        stopTimer();
+        forfeitTurn();
+      }
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  function renderTimer() {
+    const s = Math.max(0, timeLeft);
+    timerEl.textContent = '00:' + String(s).padStart(2, '0');
+  }
+
+  function forfeitTurn() {
+    if (gameOver) return;
+    statusBanner.textContent = "Time's up! Turn passed.";
+    switchTurn();
+    setTimeout(() => {
+      if (!gameOver) statusBanner.textContent = '';
+    }, 1200);
+  }
+
+  // ---------- Reset match (scores) ----------
+  resetBtn.addEventListener('click', () => {
+    scores = { X: 0, O: 0 };
+    updateScoreboard();
+    startNewRound();
+  });
+
+  // ---------- Name entry modal ----------
+  nameInput.addEventListener('input', () => {
+    const val = nameInput.value.trim();
+    startBtn.disabled = val.length === 0;
+    nameError.textContent = '';
+  });
+
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !startBtn.disabled) startGame();
+  });
+
+  startBtn.addEventListener('click', startGame);
+
+  function startGame() {
+    const val = nameInput.value.trim();
+    if (!val) {
+      nameError.textContent = 'Please enter a name to continue.';
+      return;
+    }
+    playerName = `Player (${val})`;
+    nameMeDisplay.textContent = playerName;
+    modal.style.display = 'none';
+    app.classList.remove('dimmed');
+    updateTurnUI();
+    resetTimer();
+  }
+
+  // Initial dimmed state until name is entered
+  app.classList.add('dimmed');
+  updateScoreboard();
+  updateTurnUI();
+})();
+</script>
+
+</body>
+</html>
