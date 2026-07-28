@@ -1,0 +1,1855 @@
+<!DOCTYPE html>
+<!--
+  TIC TAC TOE — BUILD INSTRUCTIONS LOG
+
+  1) Original request:
+     - Turn-based Tic Tac Toe in HTML.
+     - Soft gray background with yellow tones.
+     - X piece red, O piece blue.
+     - 9 equally spaced, darker, rounded-corner squares that fill on click/tap.
+     - Everything centered on the page.
+     - A 30-second turn timer above the 3x3 grid, white text, Pangolin font.
+     - Endless play until both users decide to stop (no forced game end).
+     - A point counter on the left side of the screen showing each player's
+       name (entered via a popup before the game begins) and score.
+     - Popup UI for name entry: dims everything else to 50% opacity and
+       cannot be dismissed until a name is chosen.
+
+  2) Revision: switch color theme to dark gray background, matte black
+     squares, Montserrat Bold font throughout, and a strict gray/black/white
+     theme — with red X, blue O, and green used for the point counter.
+
+  3) Revision: scale-up on the three winning squares outlined in the winner's color.
+
+  4) Revision: added game modes (Computer with Easy & Unbeatable Minimax AI, Local, and Private Online).
+
+  5) Revision:
+     - Computer's display name is just "Computer" during an active match
+       (difficulty is no longer appended in parentheses).
+     - In vs. Computer mode the Player always takes the first turn of every
+       round, regardless of who won the previous one. Local and Private still
+       alternate the starting player after each decisive round.
+     - "Normal" difficulty now runs its own heuristic AI (win > block >
+       center > corner > edge, with an occasional slip) instead of coin-
+       flipping between the Easy and Unbeatable behaviours.
+     - Target score control in the scoreboard for all modes: a toggle switch
+       plus a "< 5 >" stepper. Default 5, min 3, max 10. The match ends with a
+       win announcement the moment a player reaches the target. Toggle it off
+       for the original endless play. Synced over the channel in Private mode.
+
+  6) Revision:
+     - The win target can now only be set BEFORE a match begins. The toggle and
+       stepper moved out of the scoreboard and into the pre-match setup modals
+       (Computer difficulty, Local, and Private), so it can't be changed
+       mid-round. In Private mode the host's setting applies to both players.
+     - The scoreboard now carries a read-only indicator for the running match:
+       the target, and how many more rounds each player needs to clinch it.
+     - The match winner is announced at the bottom, beneath the board.
+
+  7) Revision:
+     - Fixed the stepper arrows rendering as full-width green bars inside the
+       setup modals: ".modal-box button" and ".stepper button" had equal
+       specificity, so the later modal rule won once the panel moved into a
+       modal. Stepper (and the toggle's hidden checkbox) are now scoped under
+       ".target-panel" so they win. Arrows are small 34px squares.
+     - Match-end hint now reads "…or “Quit” for the main menu."
+     - Responsive pass for all screen sizes: the board is a square that scales
+       to the smaller of its width/height budget; marks, timer and gaps scale
+       with it; modals cap to the viewport and scroll instead of clipping; and
+       on phones the layout stacks in normal document flow rather than relying
+       on absolute positioning with a hard-coded top margin.
+
+  8) Revision: the in-match "First to N" indicator is green (--green), matching
+     the winner announcement, score values and Reset button. Yellow now appears
+     only on draw messages.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tic Tac Toe</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<style>
+  :root {
+    --bg-dark: #2b2d30;
+    --bg-dark-2: #1e1f21;
+    --square: #121212;
+    --square-hover: #1c1c1c;
+    --red: #e0453f;
+    --blue: #3f7fe0;
+    --green: #45c46a;
+    --yellow: #e0c23f;
+    --ink: #f2f2f2;
+    --muted: #b8b9bb;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    background: radial-gradient(circle at 30% 20%, var(--bg-dark), var(--bg-dark-2) 70%);
+    background-attachment: fixed;
+    color: var(--ink);
+  }
+
+  .app {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh; /* dvh keeps mobile browser chrome from clipping the board */
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  /* ---------- Scoreboard ---------- */
+  .scoreboard {
+    position: absolute;
+    left: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .score-card {
+    background: rgba(255,255,255,0.06);
+    border-radius: 14px;
+    padding: 14px 20px;
+    min-width: 180px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    border: 2px solid rgba(255,255,255,0.12);
+  }
+
+  .score-card.turn-active {
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(69,196,106,0.2);
+  }
+
+  .score-name {
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: 0.2px;
+    color: var(--muted);
+    word-break: break-word;
+  }
+
+  .score-value {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--green);
+  }
+
+  /* ---------- Target score: setup control (lives inside the pre-match modals) ---------- */
+  .target-panel {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    border: 2px solid rgba(255,255,255,0.1);
+    text-align: left;
+  }
+
+  .target-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .target-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 42px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+  .target-panel .switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    min-width: 0;
+  }
+  .switch .slider {
+    position: absolute;
+    inset: 0;
+    background: #3a3b3d;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.18s ease;
+  }
+  .switch .slider::before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    left: 3px;
+    top: 3px;
+    background: #ffffff;
+    border-radius: 50%;
+    transition: transform 0.18s ease;
+  }
+  .switch input:checked + .slider { background: var(--green); }
+  .switch input:checked + .slider::before { transform: translateX(18px); }
+
+  .stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    margin-top: 10px;
+  }
+
+  /* Scoped to .target-panel so these beat the generic .modal-box button rule */
+  .target-panel .stepper button {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    flex: 0 0 34px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-radius: 9px;
+    background: rgba(255,255,255,0.1);
+    color: var(--ink);
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 900;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: opacity 0.15s ease, background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .target-panel .stepper button:hover:not(:disabled) { background: rgba(255,255,255,0.2); }
+  .target-panel .stepper button:disabled { opacity: 0.25; cursor: not-allowed; }
+
+  .stepper-value {
+    font-size: 1.3rem;
+    font-weight: 900;
+    color: var(--green);
+    min-width: 32px;
+    text-align: center;
+  }
+
+  .target-hint {
+    margin-top: 8px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--muted);
+    opacity: 0.85;
+    text-align: center;
+  }
+
+  .target-panel.off .stepper { opacity: 0.3; pointer-events: none; }
+
+  .target-note {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--muted);
+    opacity: 0.75;
+    margin: -6px 0 12px;
+  }
+
+  /* ---------- Target score: read-only indicator during a match ---------- */
+  .target-readout {
+    background: rgba(255,255,255,0.06);
+    border-radius: 14px;
+    padding: 12px 14px;
+    min-width: 180px;
+    border: 2px solid rgba(255,255,255,0.12);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+
+  .readout-label {
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .readout-value {
+    font-size: 1.15rem;
+    font-weight: 900;
+    color: var(--green);
+    margin-top: 1px;
+  }
+
+  .readout-needs {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .readout-needs b { color: var(--ink); font-weight: 900; }
+  .readout-needs .clinched,
+  .readout-needs .clinched b { color: var(--green); }
+
+  .match-end-sub {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+
+  .reset-btn {
+    margin-top: 6px;
+    background: var(--green);
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+  .reset-btn:hover { opacity: 0.85; }
+
+  .quit-btn {
+    background: rgba(255,255,255,0.08);
+    color: var(--ink);
+    border: 2px solid rgba(255,255,255,0.14);
+  }
+  .quit-btn:hover { opacity: 0.85; }
+
+  .quit-btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .quit-btn-row button {
+    flex: 1;
+    width: auto;
+    margin-top: 0;
+    padding: 11px;
+    border: none;
+    border-radius: 10px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+
+  .modal-box button.quit-no { background: var(--red); color: #ffffff; }
+  .modal-box button.quit-no:hover { opacity: 0.85; }
+  .modal-box button.quit-yes { background: var(--green); color: #ffffff; }
+  .modal-box button.quit-yes:hover { opacity: 0.85; }
+
+  /* ---------- Center column: timer + board ---------- */
+  .center-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(12px, 2.5vh, 22px);
+    max-width: 100%;
+  }
+
+  .timer {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    color: #ffffff;
+    font-size: clamp(1.6rem, 6vw, 2.4rem);
+    text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    letter-spacing: 1px;
+    min-width: min(220px, 60vw);
+    text-align: center;
+  }
+
+  .turn-label {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    color: var(--muted);
+    font-size: 1.1rem;
+    margin-top: -14px;
+    text-align: center;
+    max-width: 360px;
+  }
+
+  .board {
+    position: relative;
+    display: grid;
+    /* Square board that scales to the smaller of width/height budget */
+    width: min(328px, 84vw, 46vh);
+    aspect-ratio: 1 / 1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    gap: clamp(8px, 2.2vw, 14px);
+  }
+
+  .cell.win-cell {
+    transform: scale(1.08);
+    z-index: 2;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+
+  .cell {
+    background: var(--square);
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 2px 3px rgba(255,255,255,0.03);
+    transition: background 0.15s ease, transform 0.08s ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .cell:hover { background: var(--square-hover); }
+  .cell:active { transform: scale(0.96); }
+
+  .cell.filled { cursor: default; }
+  .cell.filled:hover { background: var(--square); }
+
+  .mark {
+    font-size: clamp(1.9rem, 11vw, 3.2rem);
+    font-weight: 900;
+    font-family: 'Montserrat', sans-serif;
+    animation: pop 0.18s ease;
+  }
+
+  .mark.x { color: var(--red); }
+  .mark.o { color: var(--blue); }
+
+  @keyframes pop {
+    from { transform: scale(0.4); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .status-banner {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: var(--green);
+    min-height: 26px;
+    line-height: 1.35;
+    max-width: min(380px, 92vw);
+    padding: 0 8px;
+    text-align: center;
+  }
+
+  .status-banner.match-end {
+    font-size: 1.32rem;
+    font-weight: 900;
+  }
+
+  .credit-text {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.5);
+    text-align: center;
+    margin-top: -6px;
+  }
+
+  /* ---------- Modal ---------- */
+  .app.dimmed > *:not(.modal) {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    background: rgba(0,0,0,0.55);
+  }
+
+  .modal-box {
+    background: #1c1d1f;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: clamp(20px, 5vw, 34px) clamp(18px, 5vw, 30px);
+    /* Never wider than the screen, and scroll instead of clipping when short */
+    width: min(340px, 100%);
+    max-height: calc(100dvh - 28px);
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    text-align: center;
+  }
+
+  .modal-box h2 {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    margin: 0 0 6px;
+    color: var(--ink);
+    font-size: 1.6rem;
+  }
+
+  .modal-box p {
+    margin: 0 0 18px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .modal-box input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 2px solid #3a3b3d;
+    background: #121212;
+    color: var(--ink);
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 14px;
+    outline: none;
+  }
+  .modal-box input:focus { border-color: var(--green); }
+
+  .modal-box button {
+    width: 100%;
+    padding: 11px;
+    border: none;
+    border-radius: 10px;
+    background: var(--green);
+    color: #ffffff;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .modal-box button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .mode-btn { text-align: center; }
+  .mode-sub {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    opacity: 0.8;
+    margin-top: 3px;
+  }
+
+  .modal-back {
+    background: transparent !important;
+    color: var(--muted) !important;
+    font-size: 0.8rem !important;
+    font-weight: 700 !important;
+    text-decoration: underline;
+    padding: 6px !important;
+    cursor: pointer;
+  }
+
+  .code-display {
+    font-size: 1.9rem;
+    font-weight: 900;
+    letter-spacing: 5px;
+    color: var(--green);
+    background: #121212;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 14px;
+  }
+
+  .link-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .link-row input {
+    flex: 1;
+    margin-bottom: 0;
+    font-size: 0.72rem;
+    padding: 10px 8px;
+  }
+  .link-row button {
+    width: auto;
+    padding: 10px 14px;
+    margin-top: 0;
+    flex-shrink: 0;
+  }
+
+  .modal-error {
+    color: var(--red);
+    font-size: 0.8rem;
+    margin: -6px 0 12px;
+    min-height: 14px;
+  }
+  .modal-status {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin: 14px 0 4px;
+    min-height: 14px;
+  }
+
+  @media (max-width: 640px) {
+    /* Stack in normal document flow instead of absolute positioning, so the
+       layout can never overlap or clip regardless of screen height. */
+    .app {
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 14px;
+      padding: 14px 12px 24px;
+    }
+
+    .scoreboard {
+      position: static;
+      transform: none;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      gap: 10px;
+    }
+    .score-card {
+      min-width: 0;
+      flex: 1 1 130px;
+      max-width: 190px;
+      padding: 10px 12px;
+    }
+
+    /* The setup control lives in the modals; the scoreboard shows a readout */
+    .target-readout {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      min-width: 0;
+      width: 100%;
+      padding: 8px 12px;
+    }
+    .readout-label { display: none; }
+    .readout-value { font-size: 0.95rem; white-space: nowrap; }
+    .readout-needs {
+      margin-top: 0;
+      flex-direction: row;
+      gap: 12px;
+      font-size: 0.7rem;
+    }
+
+    .scoreboard .reset-btn { flex: 1 1 130px; max-width: 190px; margin-top: 0; }
+
+    /* Tighter height budget on phones, since the scoreboard sits above the board */
+    .board { width: min(328px, 84vw, 38vh); }
+
+    .center-col { margin-top: 0; }
+  }
+
+  /* Short/landscape screens: keep everything on one screen where possible */
+  @media (max-height: 560px) and (min-width: 641px) {
+    .board { width: min(328px, 84vw, 52vh); }
+    .center-col { gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app dimmed" id="app">
+
+  <div class="scoreboard">
+    <div class="score-card" id="cardMe">
+      <div class="score-name" id="nameMeDisplay">X</div>
+      <div class="score-value" id="scoreMe">0</div>
+    </div>
+    <div class="score-card" id="cardOpp">
+      <div class="score-name" id="nameOppDisplay">O</div>
+      <div class="score-value" id="scoreOpp">0</div>
+    </div>
+    <div class="target-readout" id="targetReadout">
+      <div class="readout-label">Match Target</div>
+      <div class="readout-value" id="readoutValue">First to 5</div>
+      <div class="readout-needs" id="readoutNeeds">
+        <div id="readoutRowX"><span id="readoutNameX">X</span> <b id="readoutNeedX">needs 5</b></div>
+        <div id="readoutRowO"><span id="readoutNameO">O</span> <b id="readoutNeedO">needs 5</b></div>
+      </div>
+    </div>
+
+    <button class="reset-btn" id="resetBtn">Reset Match</button>
+    <button class="reset-btn quit-btn" id="quitBtn">Quit</button>
+  </div>
+
+  <div class="center-col">
+    <div class="timer" id="timer">00:30</div>
+    <div class="turn-label" id="turnLabel">X's turn</div>
+    <div class="board" id="board"></div>
+    <div class="status-banner" id="statusBanner"></div>
+    <div class="credit-text">Developed by Rakin</div>
+  </div>
+
+</div>
+
+<!-- Target score setup control — moved into whichever setup modal is open.
+     Deliberately absent once a match is underway, so the win target can only
+     be chosen before the first round starts. -->
+<div class="target-panel" id="targetPanel" style="display:none;">
+  <div class="target-row">
+    <span class="target-label">Match Target</span>
+    <label class="switch">
+      <input type="checkbox" id="targetToggle" checked>
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="stepper">
+    <button type="button" id="targetDownBtn" aria-label="Lower the target score">&lsaquo;</button>
+    <span class="stepper-value" id="targetValue">5</span>
+    <button type="button" id="targetUpBtn" aria-label="Raise the target score">&rsaquo;</button>
+  </div>
+  <div class="target-hint" id="targetHint">First to 5 wins</div>
+</div>
+
+<!-- Step 1: name entry -->
+<div class="modal" id="nameModal">
+  <div class="modal-box">
+    <h2>Welcome!</h2>
+    <p>Enter your name to start playing.</p>
+    <input type="text" id="nameInput" placeholder="Your name" maxlength="16" autofocus>
+    <div class="modal-error" id="nameError"></div>
+    <button id="nameNextBtn" disabled>Continue</button>
+  </div>
+</div>
+
+<!-- Step 2: mode select -->
+<div class="modal" id="modeModal" style="display:none;">
+  <div class="modal-box">
+    <h2>Choose a Mode</h2>
+    <p>Hey <span id="modeGreetName"></span> — how do you want to play?</p>
+    <button class="mode-btn" id="computerModeBtn">Computer<span class="mode-sub">Play against the AI</span></button>
+    <button class="mode-btn" id="localModeBtn" style="margin-top: 10px;">Local<span class="mode-sub">Same device — pass and play</span></button>
+    <button class="mode-btn" id="privateModeBtn" style="margin-top: 10px;">Private<span class="mode-sub">Play online with a code</span></button>
+  </div>
+</div>
+
+<!-- Step 3a: computer mode difficulty select -->
+<div class="modal" id="computerModal" style="display:none;">
+  <div class="modal-box">
+    <h2>Computer</h2>
+    <p>Set the match length, then pick a difficulty to begin.</p>
+    <div id="computerTargetSlot"></div>
+    <button class="mode-btn" id="easyAiBtn">Easy<span class="mode-sub">Capable & clumsy</span></button>
+    <button class="mode-btn" id="normalAiBtn" style="margin-top: 10px;">Normal<span class="mode-sub">Casual & makes mistakes</span></button>
+    <button class="mode-btn" id="unbeatableAiBtn" style="margin-top: 10px;">Unbeatable<span class="mode-sub">Competitive & calculates every move</span></button>
+    <button class="modal-back" id="computerBackBtn" style="margin-top: 10px;">Back</button>
+  </div>
+</div>
+
+<!-- Step 3b: local mode - second player name -->
+<div class="modal" id="localModal" style="display:none;">
+  <div class="modal-box">
+    <h2>Local Match</h2>
+    <p>Enter the second player's name.</p>
+    <input type="text" id="opponentNameInput" placeholder="Opponent name" maxlength="16">
+    <div class="modal-error" id="opponentNameError"></div>
+    <div id="localTargetSlot"></div>
+    <button id="localStartBtn" disabled>Start Match</button>
+    <button class="modal-back" id="localBackBtn">Back</button>
+  </div>
+</div>
+
+<!-- Step 3c: private mode -->
+<div class="modal" id="privateModal" style="display:none;">
+  <div class="modal-box">
+
+    <div id="privateChoice">
+      <h2>Private Match</h2>
+      <p>Play with a friend on a separate device.</p>
+      <div id="privateTargetSlot"></div>
+      <div class="target-note">The host's match length applies to both players.</div>
+      <button class="mode-btn" id="generateCodeBtn">Generate Code</button>
+      <button class="mode-btn" id="enterCodeBtn" style="margin-top: 10px;">Enter Code</button>
+      <button class="modal-back" id="privateBackBtn" style="margin-top: 10px;">Back</button>
+    </div>
+
+    <div id="generateCodeView" style="display:none;">
+      <h2>Your Room Code</h2>
+      <p>Share the code below with your opponent.</p>
+      <div class="code-display" id="codeDisplay">-----</div>
+      <div class="link-row">
+        <input type="text" id="shareLink" readonly>
+        <button id="copyLinkBtn">Copy</button>
+      </div>
+      <div class="modal-status" id="generateStatus">Waiting for opponent to join…</div>
+      <button class="modal-back" id="generateBackBtn">Back</button>
+    </div>
+
+    <div id="enterCodeView" style="display:none;">
+      <h2>Join a Match</h2>
+      <p>Enter the code your friend shared with you.</p>
+      <input type="text" id="joinCodeInput" placeholder="e.g. AB12C" maxlength="6" style="text-transform:uppercase;">
+      <div class="modal-error" id="joinError"></div>
+      <button id="joinCodeBtn" disabled>Join</button>
+      <button class="modal-back" id="enterBackBtn">Back</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Quit confirmation -->
+<div class="modal" id="quitModal" style="display:none;">
+  <div class="modal-box">
+    <h2>Quit Match?</h2>
+    <p>Are you sure you want to quit? This will end the current match.</p>
+    <div class="quit-btn-row">
+      <button class="quit-no" id="quitNoBtn">No</button>
+      <button class="quit-yes" id="quitYesBtn">Yes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const boardEl = document.getElementById('board');
+  const timerEl = document.getElementById('timer');
+  const turnLabelEl = document.getElementById('turnLabel');
+  const statusBanner = document.getElementById('statusBanner');
+
+  const scoreMeEl = document.getElementById('scoreMe');
+  const scoreOppEl = document.getElementById('scoreOpp');
+  const nameMeDisplay = document.getElementById('nameMeDisplay');
+  const nameOppDisplay = document.getElementById('nameOppDisplay');
+  const cardMe = document.getElementById('cardMe');
+  const cardOpp = document.getElementById('cardOpp');
+  const app = document.getElementById('app');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const targetPanel = document.getElementById('targetPanel');
+  const targetToggle = document.getElementById('targetToggle');
+  const targetValueEl = document.getElementById('targetValue');
+  const targetDownBtn = document.getElementById('targetDownBtn');
+  const targetUpBtn = document.getElementById('targetUpBtn');
+  const targetHint = document.getElementById('targetHint');
+
+  const targetSlots = {
+    computer: document.getElementById('computerTargetSlot'),
+    local: document.getElementById('localTargetSlot'),
+    private: document.getElementById('privateTargetSlot')
+  };
+
+  const targetReadout = document.getElementById('targetReadout');
+  const readoutValue = document.getElementById('readoutValue');
+  const readoutNeeds = document.getElementById('readoutNeeds');
+  const readoutNameX = document.getElementById('readoutNameX');
+  const readoutNameO = document.getElementById('readoutNameO');
+  const readoutNeedX = document.getElementById('readoutNeedX');
+  const readoutNeedO = document.getElementById('readoutNeedO');
+  const readoutRowX = document.getElementById('readoutRowX');
+  const readoutRowO = document.getElementById('readoutRowO');
+
+  // Modals
+  const nameModal = document.getElementById('nameModal');
+  const modeModal = document.getElementById('modeModal');
+  const computerModal = document.getElementById('computerModal');
+  const localModal = document.getElementById('localModal');
+  const privateModal = document.getElementById('privateModal');
+  const quitModal = document.getElementById('quitModal');
+  const modals = { name: nameModal, mode: modeModal, computer: computerModal, local: localModal, private: privateModal, quit: quitModal };
+
+  const quitBtn = document.getElementById('quitBtn');
+  const quitYesBtn = document.getElementById('quitYesBtn');
+  const quitNoBtn = document.getElementById('quitNoBtn');
+
+  const nameInput = document.getElementById('nameInput');
+  const nameNextBtn = document.getElementById('nameNextBtn');
+  const nameError = document.getElementById('nameError');
+  const modeGreetName = document.getElementById('modeGreetName');
+  
+  const computerModeBtn = document.getElementById('computerModeBtn');
+  const easyAiBtn = document.getElementById('easyAiBtn');
+  const normalAiBtn = document.getElementById('normalAiBtn');
+  const unbeatableAiBtn = document.getElementById('unbeatableAiBtn');
+  const computerBackBtn = document.getElementById('computerBackBtn');
+
+  const localModeBtn = document.getElementById('localModeBtn');
+  const privateModeBtn = document.getElementById('privateModeBtn');
+
+  const opponentNameInput = document.getElementById('opponentNameInput');
+  const opponentNameError = document.getElementById('opponentNameError');
+  const localStartBtn = document.getElementById('localStartBtn');
+  const localBackBtn = document.getElementById('localBackBtn');
+
+  const privateChoice = document.getElementById('privateChoice');
+  const generateCodeView = document.getElementById('generateCodeView');
+  const enterCodeView = document.getElementById('enterCodeView');
+  const privateViews = { choice: privateChoice, generate: generateCodeView, enter: enterCodeView };
+
+  const generateCodeBtn = document.getElementById('generateCodeBtn');
+  const enterCodeBtn = document.getElementById('enterCodeBtn');
+  const privateBackBtn = document.getElementById('privateBackBtn');
+  const codeDisplay = document.getElementById('codeDisplay');
+  const shareLink = document.getElementById('shareLink');
+  const copyLinkBtn = document.getElementById('copyLinkBtn');
+  const generateStatus = document.getElementById('generateStatus');
+  const generateBackBtn = document.getElementById('generateBackBtn');
+  const joinCodeInput = document.getElementById('joinCodeInput');
+  const joinCodeBtn = document.getElementById('joinCodeBtn');
+  const joinError = document.getElementById('joinError');
+  const enterBackBtn = document.getElementById('enterBackBtn');
+
+  let board = Array(9).fill(null);
+  let currentPlayer = 'X'; // X always goes first each new round
+  let roundStarter = 'X';  // who starts the next round; alternates after every round,
+                           // except vs. Computer where the Player always starts
+  let gameOver = false;    // current round finished
+  let matchOver = false;   // target score reached — no further rounds
+  let scores = { X: 0, O: 0 };
+  let roundTimeout = null;
+
+  // Target score (first to N wins the match). Applies to every game mode.
+  const TARGET_MIN = 3;
+  const TARGET_MAX = 10;
+  let targetScore = 5;
+  let targetEnabled = true;
+
+  let myRawName = '';
+  let opponentRawName = '';
+  let xName = 'X';
+  let oName = 'O';
+  let gameMode = null;            // 'computer' | 'local' | 'private'
+  let computerDifficulty = 'unbeatable'; // 'easy' | 'normal' | 'unbeatable'
+  let computerTimeout = null;
+  let myRole = 'X';               // which symbol *this device* controls in private mode
+  let peer = null;
+  let conn = null;
+  let joinTimeout = null;
+  let roomCode = '';
+  let pendingRoomCode = null;
+
+  const TURN_SECONDS = 30;
+  let timeLeft = TURN_SECONDS;
+  let timerInterval = null;
+
+  const WIN_LINES = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+  ];
+
+  function formatName(n) { return n; }
+
+  // ---------- Modal navigation ----------
+  function hideAllModals() {
+    Object.values(modals).forEach(m => m.style.display = 'none');
+  }
+  function showModal(key) {
+    hideAllModals();
+    placeTargetPanel(key);
+    modals[key].style.display = 'flex';
+  }
+
+  // The setup control is a single element that moves into the setup modal
+  // currently on screen. Modals without a slot (name entry, quit) simply
+  // don't get it, which is what keeps the target locked once play starts.
+  function placeTargetPanel(key) {
+    const slot = targetSlots[key];
+    if (slot) {
+      slot.appendChild(targetPanel);
+      targetPanel.style.display = '';
+    } else {
+      targetPanel.style.display = 'none';
+    }
+  }
+  function showPrivateView(key) {
+    Object.values(privateViews).forEach(v => v.style.display = 'none');
+    privateViews[key].style.display = 'block';
+  }
+
+  // Build board cells
+  for (let i = 0; i < 9; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.index = i;
+    cell.addEventListener('click', () => handleCellClick(i));
+    boardEl.appendChild(cell);
+  }
+  const cellEls = Array.from(boardEl.querySelectorAll('.cell'));
+
+  function highlightWin(winLine, player) {
+    const color = player === 'X' ? 'var(--red)' : 'var(--blue)';
+    winLine.forEach(idx => {
+      const cell = cellEls[idx];
+      cell.classList.add('win-cell');
+      cell.style.boxShadow = `inset 0 2px 4px rgba(0,0,0,0.5), 0 0 0 3px ${color}`;
+    });
+  }
+
+  function clearWinHighlight() {
+    cellEls.forEach(cell => {
+      cell.classList.remove('win-cell');
+      cell.style.boxShadow = '';
+    });
+  }
+
+  function handleCellClick(i) {
+    if (gameOver || board[i]) return;
+    if (gameMode === 'private' && currentPlayer !== myRole) return;
+    if (gameMode === 'computer' && currentPlayer !== 'X') return; // Ignore input on AI turn
+    placeMark(i, currentPlayer, true);
+  }
+
+  function placeMark(i, player, broadcast) {
+    board[i] = player;
+    const cell = cellEls[i];
+    cell.classList.add('filled');
+    const mark = document.createElement('span');
+    mark.className = 'mark ' + (player === 'X' ? 'x' : 'o');
+    mark.textContent = player;
+    cell.appendChild(mark);
+
+    if (broadcast && gameMode === 'private') {
+      sendMessage({ type: 'move', index: i, player });
+    }
+
+    const winLine = checkWin(player);
+    if (winLine) {
+      endRound(player, winLine);
+    } else if (board.every(c => c !== null)) {
+      endRound(null, null);
+    } else {
+      switchTurn();
+    }
+  }
+
+  function applyRemoteMove(i, player) {
+    if (gameOver || board[i]) return;
+    placeMark(i, player, false);
+  }
+
+  function checkWin(player) {
+    for (const line of WIN_LINES) {
+      if (line.every(idx => board[idx] === player)) return line;
+    }
+    return null;
+  }
+
+  function endRound(winner, winLine) {
+    gameOver = true;
+    stopTimer();
+    if (winLine) {
+      highlightWin(winLine, winner);
+    }
+    if (winner === 'X') scores.X++;
+    else if (winner === 'O') scores.O++;
+
+    if (gameMode === 'private') {
+      if (winner === null) {
+        statusBanner.innerHTML = '<span style="color:var(--yellow)">It\'s a draw!</span>';
+      } else if (winner === myRole) {
+        statusBanner.innerHTML = '<span style="color:var(--green)">You won the round. Your opponent lost.</span>';
+      } else {
+        statusBanner.innerHTML = '<span style="color:var(--red)">You lost the round. Your opponent won.</span>';
+      }
+    } else if (winner === 'X') {
+      statusBanner.textContent = `${xName} wins the round!`;
+    } else if (winner === 'O') {
+      statusBanner.textContent = `${oName} wins the round!`;
+    } else {
+      statusBanner.innerHTML = '<span style="color:var(--yellow)">It\'s a draw!</span>';
+    }
+    updateScoreboard();
+
+    // A player hitting the target ends the match right away.
+    if (checkTargetReached()) return;
+
+    if (gameMode === 'computer') {
+      // The Player always opens every round against the Computer.
+      roundStarter = 'X';
+    } else if (winner !== null) {
+      roundStarter = roundStarter === 'X' ? 'O' : 'X';
+    }
+
+    if (roundTimeout) clearTimeout(roundTimeout);
+    roundTimeout = setTimeout(startNewRound, 1600);
+  }
+
+  // ---------- Target score / match end ----------
+  function checkTargetReached() {
+    if (!targetEnabled || matchOver) return false;
+    const winner = scores.X >= targetScore ? 'X'
+                 : scores.O >= targetScore ? 'O'
+                 : null;
+    if (!winner) return false;
+    endMatch(winner);
+    return true;
+  }
+
+  function endMatch(winner) {
+    matchOver = true;
+    gameOver = true;
+    stopTimer();
+    if (computerTimeout) clearTimeout(computerTimeout);
+    if (roundTimeout) clearTimeout(roundTimeout);
+
+    const tally = `${scores.X} – ${scores.O}`;
+    let message;
+    if (gameMode === 'private') {
+      message = winner === myRole
+        ? `<span style="color:var(--green)">🏆 You win the match! ${tally}</span>`
+        : `<span style="color:var(--red)">Your opponent wins the match. ${tally}</span>`;
+    } else {
+      const name = winner === 'X' ? xName : oName;
+      message = `<span style="color:var(--green)">🏆 ${name} wins the match! ${tally}</span>`;
+    }
+
+    statusBanner.classList.add('match-end');
+    statusBanner.innerHTML = message +
+      '<span class="match-end-sub">Press \u201cReset Match\u201d to play again, or \u201cQuit\u201d for the main menu.</span>';
+    turnLabelEl.textContent = 'Match over';
+    cardMe.classList.remove('turn-active');
+    cardOpp.classList.remove('turn-active');
+    timerEl.textContent = '00:00';
+  }
+
+  function updateTargetUI() {
+    targetToggle.checked = targetEnabled;
+    targetValueEl.textContent = targetScore;
+    targetPanel.classList.toggle('off', !targetEnabled);
+    targetDownBtn.disabled = !targetEnabled || targetScore <= TARGET_MIN;
+    targetUpBtn.disabled = !targetEnabled || targetScore >= TARGET_MAX;
+    targetHint.textContent = targetEnabled
+      ? `First to ${targetScore} wins`
+      : 'Endless play';
+    updateMatchIndicator();
+  }
+
+  // Scoreboard readout: how many more rounds each side needs to take the match.
+  function updateMatchIndicator() {
+    if (!targetEnabled) {
+      readoutValue.textContent = 'Endless play';
+      readoutNeeds.style.display = 'none';
+      return;
+    }
+    readoutNeeds.style.display = '';
+    readoutValue.textContent = `First to ${targetScore}`;
+    readoutNameX.textContent = xName;
+    readoutNameO.textContent = oName;
+    renderNeed(readoutRowX, readoutNeedX, targetScore - scores.X);
+    renderNeed(readoutRowO, readoutNeedO, targetScore - scores.O);
+  }
+
+  function renderNeed(row, valueEl, remaining) {
+    const left = Math.max(0, remaining);
+    valueEl.textContent = left === 0 ? '🏆 winner' : `needs ${left}`;
+    row.classList.toggle('clinched', left === 0);
+  }
+
+  function applyTargetSettings(value, enabled) {
+    // Belt and braces: the control isn't reachable mid-match, but never let a
+    // stray call change the target once a match is underway.
+    if (gameMode) return;
+    targetScore = Math.min(TARGET_MAX, Math.max(TARGET_MIN, value));
+    targetEnabled = enabled;
+    updateTargetUI();
+  }
+
+  targetToggle.addEventListener('change', () => {
+    applyTargetSettings(targetScore, targetToggle.checked);
+  });
+  targetDownBtn.addEventListener('click', () => {
+    applyTargetSettings(targetScore - 1, targetEnabled);
+  });
+  targetUpBtn.addEventListener('click', () => {
+    applyTargetSettings(targetScore + 1, targetEnabled);
+  });
+
+  function switchTurn() {
+    currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+    updateTurnUI();
+    resetTimer();
+
+    if (!gameOver && gameMode === 'computer' && currentPlayer === 'O') {
+      triggerComputerTurn();
+    }
+  }
+
+  function updateTurnUI() {
+    turnLabelEl.textContent = currentPlayer === 'X'
+      ? `${xName}'s turn (X)`
+      : `${oName}'s turn (O)`;
+    cardMe.classList.toggle('turn-active', currentPlayer === 'X');
+    cardOpp.classList.toggle('turn-active', currentPlayer === 'O');
+  }
+
+  function updateScoreboard() {
+    nameMeDisplay.textContent = xName;
+    nameOppDisplay.textContent = oName;
+    scoreMeEl.textContent = scores.X;
+    scoreOppEl.textContent = scores.O;
+    updateMatchIndicator();
+  }
+
+  function startNewRound() {
+    if (matchOver) return; // match is decided — wait for Reset Match
+    if (computerTimeout) clearTimeout(computerTimeout);
+    board = Array(9).fill(null);
+    gameOver = false;
+    statusBanner.classList.remove('match-end');
+    statusBanner.textContent = '';
+    cellEls.forEach(cell => {
+      cell.innerHTML = '';
+      cell.classList.remove('filled');
+      cell.style.boxShadow = '';
+    });
+    clearWinHighlight();
+    currentPlayer = roundStarter;
+    updateTurnUI();
+    resetTimer();
+  }
+
+  // ---------- Computer AI Logic ----------
+  function triggerComputerTurn() {
+    if (computerTimeout) clearTimeout(computerTimeout);
+    computerTimeout = setTimeout(() => {
+      if (gameOver || gameMode !== 'computer' || currentPlayer !== 'O') return;
+      const move = computerDifficulty === 'easy'
+        ? getRandomMove(board)
+        : computerDifficulty === 'normal'
+          ? getNormalMove(board)
+          : getBestMove(board);
+      if (move !== null && move !== undefined) {
+        placeMark(move, 'O', false);
+      }
+    }, 450);
+  }
+
+  function getRandomMove(currentBoard) {
+    const available = [];
+    for (let i = 0; i < 9; i++) {
+      if (currentBoard[i] === null) available.push(i);
+    }
+    if (available.length === 0) return null;
+    return available[Math.floor(Math.random() * available.length)];
+  }
+
+  // Normal: standard, balanced heuristic play — its own logic, not a blend of
+  // Easy (random) and Unbeatable (minimax). It takes wins, blocks threats and
+  // favours strong squares, but it never looks ahead far enough to see a fork,
+  // so a sharp opponent can still beat it.
+  function getNormalMove(currentBoard) {
+    // A casual player slips now and then.
+    if (Math.random() < 0.2) {
+      const slip = getRandomMove(currentBoard);
+      if (slip !== null) return slip;
+    }
+
+    // 1. Take the win when it's there.
+    const winning = findCriticalSquare(currentBoard, 'O');
+    if (winning !== null) return winning;
+
+    // 2. Otherwise block the opponent from winning next move.
+    const blocking = findCriticalSquare(currentBoard, 'X');
+    if (blocking !== null) return blocking;
+
+    // 3. Fall back on positional preference: centre, then corners, then edges.
+    const preference = [[4], [0, 2, 6, 8], [1, 3, 5, 7]];
+    for (const group of preference) {
+      const open = group.filter(i => currentBoard[i] === null);
+      if (open.length) return open[Math.floor(Math.random() * open.length)];
+    }
+    return null;
+  }
+
+  // Returns the square that completes a line for `player`, or null if none.
+  function findCriticalSquare(currentBoard, player) {
+    for (const line of WIN_LINES) {
+      const marks = line.map(i => currentBoard[i]);
+      const owned = marks.filter(m => m === player).length;
+      const empty = marks.filter(m => m === null).length;
+      if (owned === 2 && empty === 1) return line[marks.indexOf(null)];
+    }
+    return null;
+  }
+
+  function getBestMove(currentBoard) {
+    let bestScore = -Infinity;
+    let bestMove = null;
+
+    for (let i = 0; i < 9; i++) {
+      if (currentBoard[i] === null) {
+        currentBoard[i] = 'O';
+        let score = minimax(currentBoard, 0, false);
+        currentBoard[i] = null;
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = i;
+        }
+      }
+    }
+    return bestMove;
+  }
+
+  function minimax(boardState, depth, isMaximizing) {
+    let winner = checkBoardWin(boardState);
+    if (winner === 'O') return 10 - depth;
+    if (winner === 'X') return depth - 10;
+    if (winner === 'tie') return 0;
+
+    if (isMaximizing) {
+      let bestScore = -Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (boardState[i] === null) {
+          boardState[i] = 'O';
+          let score = minimax(boardState, depth + 1, false);
+          boardState[i] = null;
+          bestScore = Math.max(score, bestScore);
+        }
+      }
+      return bestScore;
+    } else {
+      let bestScore = Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (boardState[i] === null) {
+          boardState[i] = 'X';
+          let score = minimax(boardState, depth + 1, true);
+          boardState[i] = null;
+          bestScore = Math.min(score, bestScore);
+        }
+      }
+      return bestScore;
+    }
+  }
+
+  function checkBoardWin(b) {
+    for (const line of WIN_LINES) {
+      if (b[line[0]] && b[line[0]] === b[line[1]] && b[line[1]] === b[line[2]]) {
+        return b[line[0]];
+      }
+    }
+    if (b.every(c => c !== null)) return 'tie';
+    return null;
+  }
+
+  // ---------- Timer ----------
+  function resetTimer() {
+    stopTimer();
+    timeLeft = TURN_SECONDS;
+    renderTimer();
+    const isMyActiveTurn = (gameMode !== 'private') || (currentPlayer === myRole);
+    if (isMyActiveTurn) {
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        renderTimer();
+        if (timeLeft <= 0) {
+          stopTimer();
+          forfeitTurn();
+        }
+      }, 1000);
+    }
+  }
+
+  function stopTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  function renderTimer() {
+    const s = Math.max(0, timeLeft);
+    timerEl.textContent = '00:' + String(s).padStart(2, '0');
+  }
+
+  function forfeitTurn() {
+    if (gameOver) return;
+    statusBanner.textContent = "Time's up! Turn passed.";
+    switchTurn();
+    if (gameMode === 'private') {
+      sendMessage({ type: 'forfeit' });
+    }
+    setTimeout(() => {
+      if (!gameOver) statusBanner.textContent = '';
+    }, 1200);
+  }
+
+  // ---------- Reset match (scores) ----------
+  resetBtn.addEventListener('click', () => {
+    if (roundTimeout) clearTimeout(roundTimeout);
+    scores = { X: 0, O: 0 };
+    roundStarter = 'X';
+    matchOver = false;
+    statusBanner.classList.remove('match-end');
+    updateScoreboard();
+    startNewRound();
+    if (gameMode === 'private') {
+      sendMessage({ type: 'resetMatch' });
+    }
+  });
+
+  // ================= Quit flow =================
+  quitBtn.addEventListener('click', () => {
+    showModal('quit');
+    app.classList.add('dimmed');
+  });
+
+  quitNoBtn.addEventListener('click', () => {
+    hideAllModals();
+    app.classList.remove('dimmed');
+  });
+
+  quitYesBtn.addEventListener('click', performQuit);
+
+  function performQuit() {
+    stopTimer();
+    if (computerTimeout) clearTimeout(computerTimeout);
+    gameOver = true;
+
+    if (gameMode === 'private') {
+      sendMessage({ type: 'quit' });
+      closeChannel();
+    }
+
+    if (gameMode === 'local') {
+      goToNameEntry();
+    } else {
+      goHome();
+    }
+  }
+
+  function goHome() {
+    stopTimer();
+    if (computerTimeout) clearTimeout(computerTimeout);
+    closeChannel();
+
+    if (roundTimeout) clearTimeout(roundTimeout);
+    scores = { X: 0, O: 0 };
+    roundStarter = 'X';
+    board = Array(9).fill(null);
+    gameOver = false;
+    matchOver = false;
+    statusBanner.classList.remove('match-end');
+    gameMode = null;
+    opponentRawName = '';
+    xName = 'X';
+    oName = 'O';
+    roomCode = '';
+    pendingRoomCode = null;
+
+    cellEls.forEach(cell => {
+      cell.innerHTML = '';
+      cell.classList.remove('filled');
+      cell.style.boxShadow = '';
+    });
+    clearWinHighlight();
+    statusBanner.textContent = '';
+
+    modeGreetName.textContent = myRawName;
+    showModal('mode');
+    app.classList.add('dimmed');
+  }
+
+  function goToNameEntry() {
+    stopTimer();
+    if (computerTimeout) clearTimeout(computerTimeout);
+    closeChannel();
+
+    if (roundTimeout) clearTimeout(roundTimeout);
+    scores = { X: 0, O: 0 };
+    roundStarter = 'X';
+    board = Array(9).fill(null);
+    gameOver = false;
+    matchOver = false;
+    statusBanner.classList.remove('match-end');
+    gameMode = null;
+    opponentRawName = '';
+    myRawName = '';
+    xName = 'X';
+    oName = 'O';
+    roomCode = '';
+    pendingRoomCode = null;
+
+    cellEls.forEach(cell => {
+      cell.innerHTML = '';
+      cell.classList.remove('filled');
+      cell.style.boxShadow = '';
+    });
+    clearWinHighlight();
+    statusBanner.textContent = '';
+
+    nameInput.value = '';
+    nameNextBtn.disabled = true;
+    nameError.textContent = '';
+    showModal('name');
+    app.classList.add('dimmed');
+  }
+
+  // ================= Name entry (Step 1) =================
+  nameInput.addEventListener('input', () => {
+    nameNextBtn.disabled = nameInput.value.trim().length === 0;
+    nameError.textContent = '';
+  });
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !nameNextBtn.disabled) nameNextBtn.click();
+  });
+
+  nameNextBtn.addEventListener('click', () => {
+    const val = nameInput.value.trim();
+    if (!val) {
+      nameError.textContent = 'Please enter a name to continue.';
+      return;
+    }
+    myRawName = val;
+
+    if (pendingRoomCode) {
+      showModal('private');
+      showPrivateView('enter');
+      joinCodeInput.value = pendingRoomCode;
+      joinCodeBtn.disabled = false;
+      attemptJoin();
+    } else {
+      modeGreetName.textContent = myRawName;
+      showModal('mode');
+    }
+  });
+
+  // ================= Mode select (Step 2) =================
+  computerModeBtn.addEventListener('click', () => showModal('computer'));
+
+  easyAiBtn.addEventListener('click', () => {
+    gameMode = 'computer';
+    computerDifficulty = 'easy';
+    myRole = 'X';
+    xName = formatName(myRawName);
+    oName = 'Computer';
+    beginGame();
+  });
+
+  normalAiBtn.addEventListener('click', () => {
+    gameMode = 'computer';
+    computerDifficulty = 'normal';
+    myRole = 'X';
+    xName = formatName(myRawName);
+    oName = 'Computer';
+    beginGame();
+  });
+
+  unbeatableAiBtn.addEventListener('click', () => {
+    gameMode = 'computer';
+    computerDifficulty = 'unbeatable';
+    myRole = 'X';
+    xName = formatName(myRawName);
+    oName = 'Computer';
+    beginGame();
+  });
+
+  computerBackBtn.addEventListener('click', () => showModal('mode'));
+
+  localModeBtn.addEventListener('click', () => {
+    showModal('local');
+    opponentNameInput.value = '';
+    opponentNameError.textContent = '';
+    localStartBtn.disabled = true;
+    opponentNameInput.focus();
+  });
+
+  privateModeBtn.addEventListener('click', () => {
+    showModal('private');
+    showPrivateView('choice');
+  });
+
+  // ================= Local mode (Step 3b) =================
+  opponentNameInput.addEventListener('input', () => {
+    localStartBtn.disabled = opponentNameInput.value.trim().length === 0;
+    opponentNameError.textContent = '';
+  });
+  opponentNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !localStartBtn.disabled) localStartBtn.click();
+  });
+
+  localStartBtn.addEventListener('click', () => {
+    const val = opponentNameInput.value.trim();
+    if (!val) {
+      opponentNameError.textContent = "Please enter the second player's name.";
+      return;
+    }
+    opponentRawName = val;
+    gameMode = 'local';
+    myRole = 'X';
+    xName = formatName(myRawName);
+    oName = formatName(opponentRawName);
+    beginGame();
+  });
+
+  localBackBtn.addEventListener('click', () => showModal('mode'));
+
+  // ================= Private mode (Step 3c) =================
+  privateBackBtn.addEventListener('click', () => showModal('mode'));
+
+  generateCodeBtn.addEventListener('click', startGenerateFlow);
+  enterCodeBtn.addEventListener('click', () => {
+    showPrivateView('enter');
+    joinCodeInput.value = '';
+    joinError.textContent = '';
+    joinCodeBtn.disabled = true;
+    joinCodeInput.focus();
+  });
+
+  generateBackBtn.addEventListener('click', () => {
+    closeChannel();
+    showPrivateView('choice');
+  });
+  enterBackBtn.addEventListener('click', () => {
+    closeChannel();
+    showPrivateView('choice');
+  });
+
+  function generateRoomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+  }
+
+  function startGenerateFlow() {
+    roomCode = generateRoomCode();
+    codeDisplay.textContent = roomCode;
+    shareLink.value = roomCode;
+    generateStatus.textContent = 'Waiting for opponent to join…';
+    showPrivateView('generate');
+    myRole = 'X';
+    hostRoom(roomCode);
+  }
+
+  copyLinkBtn.addEventListener('click', () => {
+    shareLink.select();
+    shareLink.setSelectionRange(0, 9999);
+    const done = () => {
+      copyLinkBtn.textContent = 'Copied!';
+      setTimeout(() => (copyLinkBtn.textContent = 'Copy'), 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareLink.value).then(done).catch(() => {
+        document.execCommand('copy');
+        done();
+      });
+    } else {
+      document.execCommand('copy');
+      done();
+    }
+  });
+
+  joinCodeInput.addEventListener('input', () => {
+    joinCodeBtn.disabled = joinCodeInput.value.trim().length === 0;
+    joinError.textContent = '';
+  });
+  joinCodeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !joinCodeBtn.disabled) attemptJoin();
+  });
+  joinCodeBtn.addEventListener('click', attemptJoin);
+
+  function attemptJoin() {
+    const code = joinCodeInput.value.trim().toUpperCase();
+    if (!code) {
+      joinError.textContent = 'Enter a code to continue.';
+      return;
+    }
+    joinError.textContent = 'Joining…';
+    roomCode = code;
+    myRole = 'O';
+    joinRoom(code);
+  }
+
+  // ---------- Real-time sync (WebRTC via PeerJS) ----------
+  function sendMessage(data) {
+    if (conn && conn.open) conn.send(data);
+  }
+
+  function wireConnection() {
+    conn.on('data', (data) => handleChannelMessage(data));
+    conn.on('close', () => {
+      if (gameMode === 'private' && !gameOver) {
+        gameOver = true;
+        stopTimer();
+        statusBanner.innerHTML = '<span style="color:var(--red)">Your opponent disconnected.</span>';
+        setTimeout(goHome, 2400);
+      }
+    });
+  }
+
+  function hostRoom(code) {
+    closeChannel();
+    if (typeof Peer === 'undefined') {
+      generateStatus.textContent = 'Private mode needs an internet connection.';
+      return;
+    }
+    try {
+      peer = new Peer('ttt-room-' + code);
+      peer.on('open', () => {
+        generateStatus.textContent = 'Waiting for opponent to join…';
+      });
+      peer.on('connection', (c) => {
+        conn = c;
+        wireConnection();
+      });
+      peer.on('error', (err) => {
+        if (err.type === 'unavailable-id') {
+          roomCode = generateRoomCode();
+          codeDisplay.textContent = roomCode;
+          shareLink.value = roomCode;
+          hostRoom(roomCode);
+        } else {
+          generateStatus.textContent = 'Connection error — check your internet and try again.';
+        }
+      });
+    } catch (err) {
+      generateStatus.textContent = 'Could not open a private room here.';
+    }
+  }
+
+  function joinRoom(code) {
+    closeChannel();
+    if (typeof Peer === 'undefined') {
+      joinError.textContent = 'Private mode needs an internet connection.';
+      return;
+    }
+    try {
+      peer = new Peer();
+      peer.on('open', () => {
+        conn = peer.connect('ttt-room-' + code, { reliable: true });
+        wireConnection();
+        conn.on('open', () => {
+          clearTimeout(joinTimeout);
+          conn.send({ type: 'join', name: myRawName });
+        });
+      });
+      peer.on('error', (err) => {
+        clearTimeout(joinTimeout);
+        if (err.type === 'peer-unavailable') {
+          joinError.textContent = 'No room found with that code. Double-check it and try again.';
+        } else {
+          joinError.textContent = 'Connection error — check your internet and try again.';
+        }
+      });
+      joinTimeout = setTimeout(() => {
+        if (gameMode !== 'private') {
+          joinError.textContent = 'Could not connect. Double-check the code and try again.';
+          closeChannel();
+        }
+      }, 12000);
+    } catch (err) {
+      joinError.textContent = 'Could not join a private room here.';
+    }
+  }
+
+  function closeChannel() {
+    if (joinTimeout) clearTimeout(joinTimeout);
+    if (conn) {
+      conn.close();
+      conn = null;
+    }
+    if (peer) {
+      peer.destroy();
+      peer = null;
+    }
+  }
+
+  function handleChannelMessage(data) {
+    switch (data.type) {
+      case 'join':
+        opponentRawName = data.name;
+        xName = formatName(myRawName);
+        oName = formatName(opponentRawName);
+        // The host's target settings become the match settings.
+        if (conn) sendMessage({
+          type: 'joined-ack',
+          name: myRawName,
+          targetValue: targetScore,
+          targetEnabled: targetEnabled
+        });
+        gameMode = 'private';
+        beginGame();
+        break;
+      case 'joined-ack':
+        opponentRawName = data.name;
+        xName = formatName(opponentRawName);
+        oName = formatName(myRawName);
+        if (typeof data.targetEnabled === 'boolean') {
+          targetScore = data.targetValue;
+          targetEnabled = data.targetEnabled;
+          updateTargetUI();
+        }
+        gameMode = 'private';
+        beginGame();
+        break;
+      case 'move':
+        applyRemoteMove(data.index, data.player);
+        break;
+      case 'forfeit':
+        if (!gameOver) {
+          statusBanner.textContent = "Time's up! Turn passed.";
+          switchTurn();
+          setTimeout(() => {
+            if (!gameOver) statusBanner.textContent = '';
+          }, 1200);
+        }
+        break;
+      case 'resetMatch':
+        if (roundTimeout) clearTimeout(roundTimeout);
+        scores = { X: 0, O: 0 };
+        roundStarter = 'X';
+        matchOver = false;
+        statusBanner.classList.remove('match-end');
+        updateScoreboard();
+        startNewRound();
+        break;
+      case 'quit':
+        if (!gameOver) {
+          gameOver = true;
+          stopTimer();
+          scores[myRole]++;
+          updateScoreboard();
+          statusBanner.innerHTML = 'You won the round. <span style="color:var(--red)">Your opponent quit.</span>';
+        }
+        closeChannel();
+        setTimeout(goHome, 2400);
+        break;
+    }
+  }
+
+  function beginGame() {
+    hideAllModals();
+    placeTargetPanel(null); // target is fixed for the duration of the match
+    app.classList.remove('dimmed');
+    if (roundTimeout) clearTimeout(roundTimeout);
+    roundStarter = 'X'; // Player (X) opens the first round in every mode
+    matchOver = false;
+    statusBanner.classList.remove('match-end');
+    updateTargetUI();
+    updateScoreboard();
+    startNewRound();
+  }
+
+  // ---------- Init ----------
+  updateTargetUI();
+
+  const urlParams = new URLSearchParams(location.search);
+  const roomFromUrl = urlParams.get('room');
+  if (roomFromUrl) pendingRoomCode = roomFromUrl.toUpperCase();
+
+  showModal('name');
+})();
+</script>
+
+</body>
+</html>
