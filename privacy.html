@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="google-adsense-account" content="ca-pub-9663099067568035">
+<meta name="description" content="Privacy policy for abettertictactoe.com — what data the game handles, and the third-party services it uses.">
+<title>Privacy Policy | Tic-Tac-Toe by Rakin</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #2b2d30;
+    --bg-dark-2: #1e1f21;
+    --red: #e0453f;
+    --blue: #3f7fe0;
+    --green: #45c46a;
+    --ink: #f2f2f2;
+    --muted: #b8b9bb;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    background: radial-gradient(circle at 30% 20%, var(--bg-dark), var(--bg-dark-2) 70%);
+    background-attachment: fixed;
+    color: var(--ink);
+  }
+
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: clamp(28px, 6vw, 56px) clamp(16px, 5vw, 28px) 72px;
+  }
+
+  .back-link {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    margin-bottom: 26px;
+    transition: color 0.15s ease;
+  }
+  .back-link:hover { color: var(--green); }
+
+  h1 {
+    font-size: clamp(1.8rem, 7vw, 2.6rem);
+    font-weight: 900;
+    margin: 0 0 6px;
+    letter-spacing: -0.5px;
+  }
+
+  .updated {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--muted);
+    margin: 0 0 28px;
+  }
+
+  /* Summary card — mirrors the scoreboard readout from the game */
+  .summary {
+    background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-bottom: 34px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+
+  .summary-label {
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .summary ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+  .summary li {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.6;
+    margin-bottom: 6px;
+  }
+  .summary li:last-child { margin-bottom: 0; }
+  .summary b { color: var(--green); font-weight: 900; }
+
+  h2 {
+    font-size: 1.15rem;
+    font-weight: 900;
+    color: var(--green);
+    margin: 34px 0 10px;
+  }
+
+  p, li {
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.75;
+    color: var(--muted);
+  }
+
+  p { margin: 0 0 14px; }
+
+  main ul { padding-left: 20px; margin: 0 0 14px; }
+  main li { margin-bottom: 8px; }
+
+  strong { color: var(--ink); font-weight: 800; }
+
+  a { color: var(--green); }
+  a:hover { opacity: 0.8; }
+
+  .footer-note {
+    margin-top: 44px;
+    padding-top: 20px;
+    border-top: 2px solid rgba(255,255,255,0.1);
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.45);
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <a class="back-link" href="/">&lsaquo; Back to the game</a>
+
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: 15 August 2026</p>
+
+  <div class="summary">
+    <div class="summary-label">The short version</div>
+    <ul>
+      <li>There are <b>no accounts</b>, and nothing you do here is saved after you close the tab.</li>
+      <li>The name you type stays <b>on your own device</b> — except in a private match, where your opponent sees it.</li>
+      <li>Advertising on this site is served by <b>Google</b>, which uses cookies.</li>
+    </ul>
+  </div>
+
+  <main>
+
+    <h2>What this site is</h2>
+    <p>abettertictactoe.com is a free browser game. It runs entirely in your browser, and there is no login, no profile, and no database behind it. This policy explains the small amount of information the game handles and the third-party services it relies on.</p>
+
+    <h2>The name you enter</h2>
+    <p>Before a match starts, the game asks for a name to display on the scoreboard. That name is held in your browser's memory for the length of your visit and is <strong>never sent to us or stored anywhere</strong>. Refreshing or closing the page erases it. The same goes for scores and match settings — nothing carries over between visits.</p>
+
+    <h2>Private matches</h2>
+    <p>Private mode connects two players directly, device to device, using WebRTC. Two things follow from that:</p>
+    <ul>
+      <li><strong>Your opponent sees the name you chose</strong>, along with your moves. Only pick a name you're comfortable sharing.</li>
+      <li>Setting up a direct connection requires the two devices to exchange network addresses, including <strong>IP addresses</strong>. This is handled by the public PeerJS signalling service, which brokers the introduction. Once connected, game moves travel straight between the two players and do not pass through us.</li>
+    </ul>
+    <p>Room codes are generated at random, exist only while the room is open, and are not recorded.</p>
+
+    <h2>Advertising and cookies</h2>
+    <p>This site displays ads through <strong>Google AdSense</strong>. Google and its partners use cookies and similar technologies to serve ads and measure their performance. These may be based on your prior visits to this and other websites.</p>
+    <ul>
+      <li>Google's use of advertising cookies allows it and its partners to serve ads to you based on your visits to this site and elsewhere on the internet.</li>
+      <li>You can opt out of personalised advertising at any time through <a href="https://www.google.com/settings/ads" target="_blank" rel="noopener">Google Ads Settings</a>.</li>
+      <li>Third-party vendors' use of cookies is covered by <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener">Google's advertising policies</a>. You can also opt out of some third-party vendors at <a href="https://www.aboutads.info/choices/" target="_blank" rel="noopener">aboutads.info</a>.</li>
+    </ul>
+    <p>If you are in the European Economic Area, the United Kingdom, or Switzerland, you will be asked for consent before advertising cookies are set, and you can change or withdraw that choice at any time through the consent prompt.</p>
+
+    <h2>Other services this page loads</h2>
+    <p>Loading the game pulls a few files from outside servers. Those servers necessarily see your IP address and basic browser information as part of delivering the files:</p>
+    <ul>
+      <li><strong>Google Fonts</strong> — the Montserrat typeface. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's privacy policy</a>.</li>
+      <li><strong>Cloudflare (cdnjs)</strong> — the PeerJS library used for private matches. See <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare's privacy policy</a>.</li>
+      <li><strong>Vercel</strong> — the host serving this site. See <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener">Vercel's privacy policy</a>.</li>
+    </ul>
+
+    <h2>Your choices</h2>
+    <p>You can block or delete cookies in your browser settings, and you can use the game's local and single-player modes without ever entering a private match. Blocking cookies may stop ads from displaying correctly, but the game itself will still work.</p>
+
+    <h2>Children</h2>
+    <p>This site is not directed at children under 13, and no information is knowingly collected from them. If you believe a child has shared personal information here, get in touch and it will be addressed.</p>
+
+    <h2>Changes to this policy</h2>
+    <p>If this policy changes, the date at the top of the page will be updated. Continuing to use the site after a change means you accept the revised policy.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about this policy can be sent to <a href="mailto:contact.rakinsstudio@gmail.com">REPLACE-WITH-YOUR-EMAIL@example.com</a>.</p>
+
+  </main>
+
+  <div class="footer-note">Developed by Rakin</div>
+
+</div>
+
+</body>
+</html>
