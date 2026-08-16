@@ -487,6 +487,29 @@
     margin-top: -6px;
   }
 
+  /* Privacy link. Deliberately a sibling of .app rather than a child, and
+     above the modal layer (z-index 20), so it stays readable and clickable
+     while the name-entry modal is up — the first thing a visitor sees. */
+  .privacy-link {
+    position: fixed;
+    right: 12px;
+    bottom: 10px;
+    z-index: 30;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 0.72rem;
+    letter-spacing: 0.3px;
+    color: rgba(255,255,255,0.55);
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.4);
+    transition: color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .privacy-link:hover { color: var(--green); }
+  .privacy-link:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
   /* ---------- Modal ---------- */
   .app.dimmed > *:not(.modal) {
     opacity: 0.5;
@@ -839,6 +862,8 @@
     </div>
   </div>
 </div>
+
+<a class="privacy-link" href="/privacy.html">Privacy</a>
 
 <script>
 (function () {
