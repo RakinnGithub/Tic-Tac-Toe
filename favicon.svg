@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="t">
+  <title id="t">Tic-Tac-Toe</title>
+
+  <defs>
+    <!-- Same radial wash as the game background: light at 30% 20%, falling to near-black -->
+    <radialGradient id="tile" cx="30%" cy="20%" r="85%">
+      <stop offset="0%" stop-color="#2b2d30"/>
+      <stop offset="70%" stop-color="#1e1f21"/>
+    </radialGradient>
+  </defs>
+
+  <!-- The game's rounded cell, scaled to the icon -->
+  <rect x="0.5" y="0.5" width="63" height="63" rx="12"
+        fill="url(#tile)" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+
+  <!-- X: player one, in the game's red -->
+  <g stroke="#e0453f" stroke-width="7" stroke-linecap="round">
+    <line x1="12" y1="12" x2="30" y2="30"/>
+    <line x1="30" y1="12" x2="12" y2="30"/>
+  </g>
+
+  <!-- O: player two. Wide radius, thin ring — a thicker ring closes the hole at 16px. -->
+  <circle cx="44.5" cy="44.5" r="10.5" fill="none" stroke="#3f7fe0" stroke-width="4.5"/>
+</svg>
